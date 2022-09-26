@@ -1,0 +1,2 @@
+# Syst-mes-embarqu-s
+Afin de mesurer les paramètres influant sur la formation de cyclones ou autres catastrophes naturelles, l’Agence Internationale pour la Vigilance Météorologique (AIVM) se lance dans un projet ayant pour but de déployer dans les océans des navires de surveillance équipés de stations météo embarquées.  Simplicité et efficacité exigées, une startup se lance dans le projet de la création du prototype, en suivant le cahier de charge.
