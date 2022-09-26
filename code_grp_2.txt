@@ -1,0 +1,241 @@
+#include <DHT.h>      // bibliothèque des capteurs d'humidité et de température
+#include <Wire.h>     // bibliothèque qui permet de communiquer avec le I2C
+#include <BH1750.h>   // Bibliothèque de capteur de luminosité 
+#include <SPI.h>      // bibliothèque qui permet communiquer avec SPI 
+#include <SD.h>       // bibliothèque de la carte SD
+#include <RTClib.h>   // bibliothèque de l'horloge RTC
+
+#define boutonRouge 3 // bouton rouge est branché avec pin 2
+#define boutonVert 2  // le bouton vert est branché avec pin 3
+#define DHT11_PIN 4   // le DHT est branché avec pin 7
+#define DHTTYPE DHT11
+#define RLED 4
+#define GLED 5 
+#define BLED 6
+
+DHT dht(DHT11_PIN, DHTTYPE);            // partie déclaration.
+BH1750 lightMeter;
+File myFile;
+RTC_DS1307 RTC;
+
+
+unsigned long pressTime = 0;         //initialisation 
+uint8_t i = 1, mode = 0;
+unsigned int LOG_INTERVALL = 2;
+unsigned int FILE_MAX_SIZE = 200; // déclaration de la taille maximale du fichier  
+int rev; //revision 
+
+
+// fonction pour simplifier l'utilisation de la LED RGB
+void setColorRGB(byte r, byte g, byte b) {
+  analogWrite(RLED, r);
+  analogWrite(GLED, g);
+  analogWrite(BLED, b);
+}
+
+void setup(){
+  Serial.begin(9600);
+  pinMode(boutonRouge, INPUT);   //bouton rouge comme sortie 
+  pinMode(boutonVert, INPUT);    //bouton vert comme sortie 
+  attachInterrupt(digitalPinToInterrupt(boutonRouge), boutonRougePresse, HIGH);        // Interruption du programme
+  attachInterrupt(digitalPinToInterrupt(boutonVert), boutonVertPresse, HIGH);          // Interruption du programme
+  if (digitalRead(boutonRouge)){ // si bouton rouge non pressé
+    i = 4;                              //on passe en mode configuration 
+  }
+}
+void loop(){
+  if (i == 1){                          //  mode standard 
+    modeStandard();
+    }
+  if (i == 2){                          // mode maintenance
+    modeMaintenance();
+  }
+  if (i == 3){                          // mode économique 
+      modeEconomique();
+  }
+  if ( i == 4){                         // mode configuration 
+    modeConfiguration();
+  }
+}
+
+void iniRTC(){
+
+Wire.begin();                     //  protocole I2C débute son travaille 
+
+if (! RTC.begin()) { 
+Serial.println("Couldn't find RTC"); 
+ }
+Serial.println("rtc ymchi");                      // activation du port RTC 
+  if (! RTC.isrunning()) {           // si RTC ne fonctionne pas 
+    Serial.println("RTC is NOT running!");
+//affichage du message RTC is not running 
+    RTC.adjust(DateTime(__DATE__, __TIME__)); // sert à ajuster la date
+  }
+  }
+void getTemp(){              // fonction qui mesure/renvoie la température
+    int chk = dht.readTemperature();
+  }
+void getLum(){   
+// fonction qui permet de récupérer et afficher les données de  luminosité
+   Wire.begin();
+   lightMeter.begin();               // débute la lumière
+  }
+  void enrSD(){                      // Déclaration des paramètres
+    String LOG0 = "_0.LOG";          // numéro de révision dans le fichier (0)
+    String LOG = ".LOG";             // fichier data log (stocker les données )
+    String slache = "/";
+    DateTime now = RTC.now();        // récupère de la date  
+    uint16_t M = now.month();        // récupère du mois actuelle
+    uint16_t D = now.day();          // récupère du jour actuelle
+    String Y = "20";                 // récupère de l'année courante 
+  while (!Serial) {                  // tant qu'il n'y a pas de courant 
+  }
+  if (!SD.begin(10)) {              // si il n'y a pas d'accès à la carte SD 
+  Serial.println("Erreur d’accès ou d’écriture sur la carte SD");    
+//afficher erreur d'accès ou d'écriture sur la carte 
+  while (1);                        //  boucle sans fin 
+  }
+  String fichierNom = Y+M+D+LOG0;   
+// nom du fichier : date actuelle + numéro de révision
+  myFile = SD.open(fichierNom, FILE_WRITE);    // Ouverture et écriture sur le fichier
+  if (myFile.size()<= FILE_MAX_SIZE) {       
+// Comparer avec la taille du fichier avec celle de la mémoire (déclarer avant)
+  Serial.println(myFile.size());    // Afficher la taille du fichier
+  myFile.print(dht.readTemperature());    //affichage de la température
+  myFile.print(" °C / ");
+  myFile.print(dht.readHumidity());       //affichage de l'humidité en %
+  myFile.print(" % / ");
+  myFile.print(lightMeter.readLightLevel()); //affichage de la luminosité en lx
+  myFile.print(" lx / ");
+  myFile.print(now.hour(), DEC);    // affichage de l'heure actuelle 
+  myFile.print(':');
+  myFile.print(now.minute(), DEC);  //affichage de la minute actuelle 
+  myFile.print(':');
+  myFile.println(now.second(), DEC);//affichage de la seconde actuelle
+  myFile.close();                      // fermeture du fichier MY FILE
+    } else {
+      rev = rev + 1;        // incrémentation du numéro de révision(compteur)
+      myFile.close();               //Fermeture du fichier
+      Serial.println("Création new fichier"); 
+//Afficher le message de création du nouveau fichier
+      String nouveauFichierNom = Y+M+D+slache+rev+LOG;  
+//Nommer le nouveau fichier avec la date et le num de revision
+      Serial.println(nouveauFichierNom);       
+//affichage du message du nouveau fichier avec son nom
+      myFile = SD.open(fichierNom, FILE_READ);//Ouvrir le fichier en mode lecture
+      File myNewFile = SD.open(nouveauFichierNom, FILE_WRITE);   
+//ouverture et lecture du fichier
+       while(myFile.available()){  //tant qu'on peut pas y accéder au fichier 
+        myNewFile.write(myFile.read());    //création d'un nouveau fichier 
+      }
+      SD.remove(fichierNom);               //Supprimez un fichier de la carte SD.
+    myNewFile.close();                     //fermeture du fichier       
+    }
+    myFile.close();                        //fermeture du fichier 
+    }
+void modeStandard(){                       //fonction mode standard 
+  mode = 1;                                // 1 représente le monde standard
+  setColorRGB(0, 255, 0);
+  Serial.println("Mode Standard activé");  
+// affichage du message "Mode Standard activé"
+  getTemp();        // appeler la fonction qui récupère la température 
+  Serial.println("temperature rahi tmchi");
+  iniRTC();         //appeler la fonction qui récupère les données de l'horloge
+  Serial.println("sa3a rahi tmchi");
+  getLum();         // Appeler la fonction qui récupère les données de luminosité
+  Serial.println("luminosite rahi tmchi");
+  enrSD();          // Appeler la fonction de la carte SD
+  Serial.println("sd rahi tmchi");
+  delay(6000);     //break en millisecondes
+}
+void modeMaintenance(){ 
+  setColorRGB(255, 60, 0);   
+  Serial.println("Mode maintnance activé");//fonction mode maintenance 
+  String LOG = ".LOG";        //création de l'objet 
+  String slache = "/";        //creation objet slache
+  DateTime now = RTC.now();   //récupération de la date actuelle
+  uint16_t M = now.month();
+  uint16_t D = now.day();
+  String Y = "20";
+  uint8_t num=0;              //initialisation de num
+    if (!SD.begin(10)) { // si le port ou la carte SD est branché ne convient pas
+  Serial.println("Erreur d’accès ou d’écriture sur la carte SD"); 
+//affichage d'un message d'erreur 
+    } else {
+    Serial.println("mode maintenance activée");
+//sinon afficher "mode maintenance activé"
+  while (num <= rev)          //tant que num <= au num de révision 
+  {
+    String affichageDonnees = Y+M+D+slache+rev+LOG;
+// afficher date +nombre de revision 
+    myFile = SD.open(affichageDonnees, FILE_READ);        
+//ouvrir le fichier en mode LECTURE
+    Serial.print("Affichage du fichier numéro ");
+//affichage du message "fichier numéro"
+    Serial.println(num);               //affichage du num 
+    while (myFile.available()) {       //tant qu'on a un accès au fichier 
+    Serial.write(myFile.read());       //lire  txt depuis la carte  SD 
+    }
+    myFile.close();                    //fermeture du fichier
+    num++;                             //incrémentation de num
+  }
+  delay(6000);                        //break en  milliseconde
+  }
+}
+void modeConfiguration(){              //fonction mode configuration 
+  mode=4;
+  setColorRGB(255, 255, 0);
+  Serial.println("Mode Configuration activé"); 
+//affichage du message "mode configuration
+
+}
+void modeEconomique(){                 //fonction mode économique 
+  mode = 2;                            // mode économique reçois 2
+  setColorRGB(0, 0, 255);
+  Serial.println("Mode Economique activé");    
+//affichage du message "mode économique activé
+  getTemp();          //récupération et affichage de la température
+  iniRTC();           // récupération et affichage des données de  l'horloge RTC 
+  getLum();                            //récupération des données de luminosité 
+  enrSD();                             //enregistrement sur la carte SD
+  delay((LOG_INTERVALL*1000)*2);}
+ //break de deux fois le temps du break précèdent
+void boutonRougePresse(){              //fonction du bouton rouge 
+  if (digitalRead(boutonRouge == 0)) {// si le Bouton rouge  n'est  pas pressé
+    if ((millis() - pressTime) >= 2000){   // si il est pressé pendant 5secondes
+       if (i == 3){                      //si on est en mode économique 
+        i = 1;                // Après 5s le mode économique passera au mode(1)
+      }
+      else if (i == 1){       //si on est en mode standard 
+        i = 2;                //Après 5s le mode standard (1) passera au mode (2)
+      }
+      else if (i == 2 && mode == 1){//Si la position est à 2 et le mode est a (1)
+      i = 1; //le mode est au mode standard, la position revient au mode standard
+      }
+      else if (i == 2 && mode == 2){  // Si la position est à 2 et que le mode est a 2
+        i = 3;                        //la position revient au mode économique
+      }
+                 //compteur en milliseconde 
+  }
+  else{  // si le Bouton rouge est pressé
+     pressTime = millis(); 
+    }
+  }
+}
+
+void boutonVertPresse(){      //fonction du bouton vert
+  if (digitalRead(boutonVert)){ // si le bouton vert n'est pas pressé 
+  pressTime = millis();       //compteur en milliseconde
+  }
+  else {  // si le bouton vert est pressé 
+    if ((millis() - pressTime) >= 2000){        
+//si le bouton est pressé pendant plus de 5 secondes
+      if (i == 1){            //si on est en mode standard 
+        i = 3;                //après 5s le mode standard passe en mode économique 
+      }
+      else if (i == 3){       // si on est en mode économique 
+        i = 2;       // après 5s le mode économique passe en mode maintenance 
+      }
+      }
+    }
+  }
